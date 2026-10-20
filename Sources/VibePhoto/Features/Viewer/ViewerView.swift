@@ -23,7 +23,7 @@ struct ViewerView: View {
                 ContentUnavailableView("Unable to display image", systemImage: "exclamationmark.triangle")
             }
         }
-        .navigationTitle(model.currentURL?.lastPathComponent ?? "Image Viewer")
+        .navigationTitle(model.currentURL?.lastPathComponent ?? "VibePhoto")
         .toolbar { viewerToolbar }
         .inspector(isPresented: $model.showInspector) {
             MetadataInspector(sections: model.metadata)
@@ -64,7 +64,7 @@ struct ViewerView: View {
                 model.advanceSlideshow()
             }
         }
-        .alert("Image Viewer", isPresented: Binding(
+        .alert("VibePhoto", isPresented: Binding(
             get: { model.errorMessage != nil },
             set: { if !$0 { model.errorMessage = nil } }
         )) { Button("OK") {} } message: { Text(model.errorMessage ?? "Unknown error") }

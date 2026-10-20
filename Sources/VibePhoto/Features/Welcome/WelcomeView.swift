@@ -14,7 +14,7 @@ struct WelcomeView: View {
                 .font(.system(size: 64, weight: .light))
                 .foregroundStyle(.secondary)
             VStack(spacing: 6) {
-                Text("Image Viewer").font(.largeTitle.weight(.semibold))
+                Text("VibePhoto").font(.largeTitle.weight(.semibold))
                 Text("Open an image for quick viewing, or a folder to browse your collection.")
                     .foregroundStyle(.secondary)
             }

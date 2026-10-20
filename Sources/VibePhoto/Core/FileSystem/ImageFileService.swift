@@ -9,7 +9,7 @@ enum ImageFileServiceError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .cannotEnumerate(let url):
-            "Image Viewer does not have permission to browse \(url.lastPathComponent)."
+            "VibePhoto does not have permission to browse \(url.lastPathComponent)."
         }
     }
 }

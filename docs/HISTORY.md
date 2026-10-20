@@ -7,7 +7,7 @@
 - Implemented folder and sibling discovery, thumbnail grid, sorting, search, multiple viewer windows, zoom, navigation, metadata, rotate/save, resize, favorite, and Trash behavior.
 - Added project governance, architecture, roadmap, testing, format, privacy, and AI handoff documents.
 - `swift build`: passed.
-- `swift run ImageViewer`: launched successfully; the Welcome window was captured and visually verified.
+- `swift run VibePhoto`: launched successfully; the Welcome window was captured and visually verified.
 - `swift test`: blocked because the active Command Line Tools image contains neither XCTest nor Swift Testing. This is documented; test source remains in place.
 - Initialized a new Git repository without creating a commit.
 

@@ -11,18 +11,18 @@ enum AppWindowRoute: Codable, Hashable {
 }
 
 @main
-struct ImageViewerApp: App {
+struct VibePhotoApp: App {
     @StateObject private var library = LibraryViewModel()
 
     var body: some Scene {
-        WindowGroup("Image Viewer", for: AppWindowRoute.self) { $route in
+        WindowGroup("VibePhoto", for: AppWindowRoute.self) { $route in
             AppWindowContent(route: $route)
                 .environmentObject(library)
         } defaultValue: {
             .library
         }
         .defaultSize(width: 1080, height: 720)
-        .commands { ImageViewerCommands() }
+        .commands { VibePhotoCommands() }
 
         Settings {
             SettingsView()

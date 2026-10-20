@@ -29,7 +29,7 @@ Commands:
 
 ```sh
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift build -c release
-DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project ImageViewer.xcodeproj -scheme ImageViewer -configuration Debug -destination 'platform=macOS' clean build
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project VibePhoto.xcodeproj -scheme VibePhoto -configuration Debug -destination 'platform=macOS' clean build
 ```
 
 Result: PASS. Xcode 26.6 signed the Debug app with “Sign to Run Locally”.
@@ -52,7 +52,7 @@ See ADR-006 and ADR-007 in `docs/DECISIONS.md`.
 
 ## Files changed
 
-Key additions/changes include `ImageViewer.xcodeproj`, `Config/Assets.xcassets`, `Config/`, `ImageViewerApp.swift`, `RootView.swift`, `WindowRestorationDisabler.swift`, `ImageFileService.swift`, `ImageLoadingService.swift`, `ViewerViewModel.swift`, `ViewerView.swift`, `ZoomableImageView.swift`, and `DirectOpenRegressionTests.swift`.
+Key additions/changes include `VibePhoto.xcodeproj`, `Config/Assets.xcassets`, `Config/`, `VibePhotoApp.swift`, `RootView.swift`, `WindowRestorationDisabler.swift`, `ImageFileService.swift`, `ImageLoadingService.swift`, `ViewerViewModel.swift`, `ViewerView.swift`, `ZoomableImageView.swift`, and `DirectOpenRegressionTests.swift`.
 
 All project files remain uncommitted in the initialized Git repository.
 
@@ -80,3 +80,9 @@ Read `AGENTS.md` and `.ai/TASKS.md`, run the three verification commands above w
 - Ran Gitleaks against the Git candidate file snapshot and reviewed findings; no actual credentials were identified.
 - Checked README relative links and image references. Application behavior was not changed and app build/test suites were not run for this documentation/publication task.
 - Git commits use the account's GitHub noreply address.
+
+## 2026-10-20 — Rename ImageViewer to VibePhoto
+
+- Renamed product, Swift target, Xcode project/scheme, entitlements, sources/tests and bundle id (`com.local.ImageViewer` → `com.vibephoto.VibePhoto`); the outer folder is now `VibePhoto`.
+- Replaced AppIcon with the Vibe family Apple-native icon (source: `VibeNote/assets/design/vibe-icons/`).
+- `xcodebuild -project VibePhoto.xcodeproj -scheme VibePhoto -configuration Release -derivedDataPath build`: BUILD SUCCEEDED. Tests not run.

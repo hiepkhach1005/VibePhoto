@@ -2,21 +2,21 @@
 import PackageDescription
 
 let package = Package(
-    name: "ImageViewer",
+    name: "VibePhoto",
     platforms: [.macOS(.v14)],
     products: [
-        .executable(name: "ImageViewer", targets: ["ImageViewer"])
+        .executable(name: "VibePhoto", targets: ["VibePhoto"])
     ],
     targets: [
         .executableTarget(
-            name: "ImageViewer",
-            path: "Sources/ImageViewer",
+            name: "VibePhoto",
+            path: "Sources/VibePhoto",
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .testTarget(
-            name: "ImageViewerTests",
-            dependencies: ["ImageViewer"],
-            path: "Tests/ImageViewerTests",
+            name: "VibePhotoTests",
+            dependencies: ["VibePhoto"],
+            path: "Tests/VibePhotoTests",
             swiftSettings: [.swiftLanguageMode(.v5)]
         )
     ]

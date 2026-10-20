@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import ImageViewer
+@testable import VibePhoto
 
 struct ImageFileServiceTests {
     @Test func sortByNameUsesFinderLikeOrdering() {

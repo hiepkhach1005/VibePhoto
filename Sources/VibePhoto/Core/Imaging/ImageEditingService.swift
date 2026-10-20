@@ -69,7 +69,7 @@ enum ImageEditingService {
         let base = try FileManager.default.url(
             for: .applicationSupportDirectory, in: .userDomainMask,
             appropriateFor: nil, create: true
-        ).appendingPathComponent("ImageViewer/EditBackups", isDirectory: true)
+        ).appendingPathComponent("VibePhoto/EditBackups", isDirectory: true)
         try FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
         let backup = base.appendingPathComponent(UUID().uuidString).appendingPathExtension(url.pathExtension)
         try FileManager.default.copyItem(at: url, to: backup)

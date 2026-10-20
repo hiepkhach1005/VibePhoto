@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="Config/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png" width="112" alt="Image Viewer app icon">
+  <img src="Config/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png" width="112" alt="VibePhoto app icon">
 </p>
 
-# Image Viewer
+# VibePhoto
 
 **Your folders. Your photos. A viewer that gets out of the way.**
 
@@ -20,7 +20,7 @@ A native macOS image viewer for people who organize photos in folders. Open an i
 - **Make practical edits.** Rotate, resize by pixels or percentage, inspect metadata, and move unwanted images to Trash.
 - **Work like a Mac app.** Independent viewer windows, Share, Copy, and Reveal in Finder.
 
-Image Viewer works locally: no account, uploads, analytics, or telemetry.
+VibePhoto works locally: no account, uploads, analytics, or telemetry.
 
 ## Get started
 
@@ -31,13 +31,13 @@ git clone https://github.com/hiepkhach1005/Image.git
 cd Image
 ```
 
-Open `ImageViewer.xcodeproj`, select the **ImageViewer** scheme, and Run. This is the sandboxed app target and supports local ad-hoc signing.
+Open `VibePhoto.xcodeproj`, select the **VibePhoto** scheme, and Run. This is the sandboxed app target and supports local ad-hoc signing.
 
 For the Swift Package executable:
 
 ```sh
 swift build
-swift run ImageViewer
+swift run VibePhoto
 ```
 
 To run unit tests with the full Xcode toolchain:

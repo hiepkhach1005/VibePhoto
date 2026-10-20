@@ -22,7 +22,7 @@ The UI must not promise lossless resize. Lanczos resampling and metadata/profile
 
 ## ADR-006 — Dual Xcode project and Swift Package workflow — 2026-09-01
 
-Keep Swift Package Manager for fast deterministic builds and logic tests, and maintain a native Xcode macOS app target for bundle metadata, document registration, App Sandbox entitlements, signing, runtime validation, and future UI tests. Both targets compile the same `Sources/ImageViewer` tree.
+Keep Swift Package Manager for fast deterministic builds and logic tests, and maintain a native Xcode macOS app target for bundle metadata, document registration, App Sandbox entitlements, signing, runtime validation, and future UI tests. Both targets compile the same `Sources/VibePhoto` tree.
 
 ## ADR-007 — Durable permissions and favorites — 2026-09-01
 

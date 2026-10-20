@@ -2,11 +2,11 @@ import Foundation
 import SwiftUI
 
 extension Notification.Name {
-    static let chooseImage = Notification.Name("ImageViewer.chooseImage")
-    static let chooseFolder = Notification.Name("ImageViewer.chooseFolder")
+    static let chooseImage = Notification.Name("VibePhoto.chooseImage")
+    static let chooseFolder = Notification.Name("VibePhoto.chooseFolder")
 }
 
-struct ImageViewerCommands: Commands {
+struct VibePhotoCommands: Commands {
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
             Button("Open Image…") {

@@ -3,7 +3,7 @@ import Foundation
 import ImageIO
 import Testing
 import UniformTypeIdentifiers
-@testable import ImageViewer
+@testable import VibePhoto
 
 struct ImageEditingServiceTests {
     @Test func rotateResizeAndRestoreBackup() throws {

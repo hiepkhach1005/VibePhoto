@@ -103,7 +103,7 @@ final class ViewerViewModel: ObservableObject {
         panel.canChooseDirectories = true
         panel.directoryURL = initialURL.deletingLastPathComponent()
         panel.prompt = "Grant Access"
-        panel.message = "Choose the folder containing this image so Image Viewer can navigate neighboring images."
+        panel.message = "Choose the folder containing this image so VibePhoto can navigate neighboring images."
         guard panel.runModal() == .OK, let folder = panel.url else { return false }
         let expectedFolder = initialURL.deletingLastPathComponent().standardizedFileURL
         guard folder.standardizedFileURL == expectedFolder else {
