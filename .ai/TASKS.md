@@ -12,6 +12,7 @@
 - [x] `FS-002A` Cancellable scans, debounced external-change monitoring, and refresh.
 - [x] `CACHE-001A` Bounded modification-aware memory thumbnail cache.
 - [x] `BUG-001` Direct image launch uses one window and robustly decodes PNG/JPEG/HEIC under App Sandbox.
+- [x] `UX-001` In-window viewer, multi-select open, parent-folder grants, smooth layer zoom, wrap-around navigation, tooltips, inspector close, favorites discoverability, quit on last window close.
 
 ## P1 — Production hardening
 

@@ -2,6 +2,7 @@ import AppKit
 import CoreGraphics
 import Foundation
 import ImageIO
+import SwiftUI
 import Testing
 import UniformTypeIdentifiers
 @testable import VibePhoto
@@ -43,6 +44,55 @@ struct ViewerExperienceTests {
         #expect(model.items.count == 2)
         #expect(model.needsFolderAccess)
         #expect(model.canGoNext)
+    }
+
+    @Test @MainActor func navigationWrapsAroundBothEnds() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let urls = try (1...3).map { number -> URL in
+            let url = folder.appendingPathComponent("0\(number).png")
+            try makeImage(at: url, metadata: false)
+            return url
+        }
+
+        // An explicit browser collection needs no folder grant and steps only through its members.
+        let model = ViewerViewModel(initialURL: urls[2], collection: [urls[0], urls[2]])
+        model.load()
+        #expect(model.items.map(\.url) == [urls[0], urls[2]])
+        #expect(!model.needsFolderAccess)
+        #expect(model.positionText == "2 / 2")
+
+        model.next()
+        #expect(model.currentURL == urls[0])
+        model.previous()
+        #expect(model.currentURL == urls[2])
+        model.previous()
+        model.previous()
+        #expect(model.currentURL == urls[2])
+        #expect(model.canGoPrevious && model.canGoNext)
+    }
+
+    @Test func parentFolderGrantCoversNestedFolders() {
+        #expect(FolderAccessStore.path("/Users/me", covers: "/Users/me"))
+        #expect(FolderAccessStore.path("/Users/me", covers: "/Users/me/Desktop/Image/jerry"))
+        #expect(FolderAccessStore.path("/", covers: "/Volumes/Photos"))
+        #expect(!FolderAccessStore.path("/Users/me", covers: "/Users/meow/Desktop"))
+        #expect(!FolderAccessStore.path("/Users/me/Desktop", covers: "/Users/me"))
+    }
+
+    @Test @MainActor func gestureZoomIsNotSnappedBackByStaleSwiftUIState() {
+        var zoom: CGFloat = 1
+        var mode = ImageZoomMode.fit
+        let coordinator = ZoomableImageView.Coordinator(
+            zoom: Binding(get: { zoom }, set: { zoom = $0 }),
+            mode: Binding(get: { mode }, set: { mode = $0 })
+        )
+        #expect(coordinator.isNewRequest(mode: .fit, zoom: 1))
+        // SwiftUI re-renders with the same values while the view is mid-gesture: not a request.
+        #expect(!coordinator.isNewRequest(mode: .fit, zoom: 1))
+        // A toolbar zoom changes the bound values: a real request.
+        #expect(coordinator.isNewRequest(mode: .custom, zoom: 1.25))
     }
 
     @Test func metadataStartsWithReadableSummaryAndKeepsTechnicalDetails() throws {

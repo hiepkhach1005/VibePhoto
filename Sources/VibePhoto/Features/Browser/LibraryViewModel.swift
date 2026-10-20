@@ -6,7 +6,9 @@ final class LibraryViewModel: ObservableObject {
     @Published var selectedFolder: URL?
     @Published var images: [ImageItem] = []
     @Published var isLoading = false
-    @Published var recursive = false
+    @Published var recursive = UserDefaults.standard.bool(forKey: "includeSubfolders") {
+        didSet { UserDefaults.standard.set(recursive, forKey: "includeSubfolders") }
+    }
     @Published var sort: ImageSort = .name
     @Published var ascending = true
     @Published var group: ImageGroup = .none

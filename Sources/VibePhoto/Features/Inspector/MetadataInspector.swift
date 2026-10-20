@@ -3,6 +3,7 @@ import SwiftUI
 
 struct MetadataInspector: View {
     let sections: [MetadataSection]
+    var onClose: (() -> Void)?
     @State private var showsTechnicalDetails = false
 
     private var primarySections: [MetadataSection] { sections.filter { !$0.isTechnical } }
@@ -11,6 +12,26 @@ struct MetadataInspector: View {
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 18) {
+                HStack {
+                    Text("Information").font(.title3.weight(.semibold))
+                    Spacer()
+                    Button(action: copyAll) {
+                        Image(systemName: "doc.on.doc").foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Copy all information as text")
+                    .accessibilityLabel("Copy All")
+                    if let onClose {
+                        Button(action: onClose) {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.title3)
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Close Information (⌘I or Esc)")
+                        .accessibilityLabel("Close Information")
+                    }
+                }
                 Text("The most useful details are shown first. Camera-specific metadata is available under Technical details.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -32,15 +53,14 @@ struct MetadataInspector: View {
             .padding()
         }
         .navigationTitle("Information")
-        .toolbar {
-            Button("Copy All", systemImage: "doc.on.doc") {
-                let text = sections.map { section in
-                    ([section.title] + section.rows.map { "\($0.label): \($0.value)" }).joined(separator: "\n")
-                }.joined(separator: "\n\n")
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(text, forType: .string)
-            }
-        }
+    }
+
+    private func copyAll() {
+        let text = sections.map { section in
+            ([section.title] + section.rows.map { "\($0.label): \($0.value)" }).joined(separator: "\n")
+        }.joined(separator: "\n\n")
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
     }
 
     private func sectionView(_ section: MetadataSection) -> some View {

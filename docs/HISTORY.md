@@ -47,3 +47,15 @@
 - Ran Gitleaks against the Git candidate file snapshot and reviewed findings; no actual credentials were identified.
 - Checked README relative links and image references. Application behavior was not changed and app build/test suites were not run for this documentation/publication task.
 - Git commits use the account's GitHub noreply address.
+
+## 2026-10-21 — UX refactor: in-window viewing, permissions, zoom, discoverability
+
+- Browser thumbnails, Finder opens and drag/drop now show images inside the existing window (`handlesExternalEvents` + in-browser viewer) instead of creating new windows, which Stage Manager tucked away. Esc / Back returns to the grid and scrolls to the last-opened image.
+- Grid selection: click, ⌘-click, ⇧-click; double-click or Return opens. With several images selected the viewer steps only through the selection.
+- Folder access accepts the image's folder or any parent; parent grants (e.g. Home) are pinned, survive the 12-item recent trim, and cover nested folders. Settings ▸ Folder Access manages them.
+- Zoom: Core Animation layer rendering instead of per-event full-resolution redraws; SwiftUI→AppKit sync forwards only real requests so stale bindings no longer snap the zoom back; pinch anchors at the pointer. Decoding moved off the main actor with neighbour prefetch.
+- Previous/Next wrap around both ends. Every toolbar icon has a tooltip with its shortcut; rarely used actions moved to a More menu so Information never falls into toolbar overflow. Inspector has a close button; Esc closes it.
+- Favorites: ⌘L toggles, a toast offers "Show Favorites", and Go ▸ Favorites (⌥⌘F) opens the collection in the current window.
+- Include Subfolders has its own icon, persists, and is offered from the empty state.
+- Closing the last window quits the app.
+- `swift build`, `swift test` (13 tests) and Xcode Debug build pass. Runtime: second Finder open reused the one window; closing it quit the process; layer rendering is upright.

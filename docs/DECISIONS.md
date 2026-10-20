@@ -27,3 +27,7 @@ Keep Swift Package Manager for fast deterministic builds and logic tests, and ma
 ## ADR-007 — Durable permissions and favorites — 2026-09-01
 
 Folder access uses app-scoped security bookmarks retained for the lifetime of active browsing. Favorites use file bookmarks plus resource identifiers and retain the original path as a repair fallback. Missing favorites remain visible rather than disappearing silently.
+
+## ADR-008 — One window per workflow, parent-folder grants — 2026-10-21
+
+Images open inside the current window (browser-embedded viewer or the existing viewer window) rather than spawning windows, because Stage Manager shows one window of an app at a time and hides the rest. Folder access accepts any ancestor of the needed folder; ancestor grants are pinned bookmarks so a single Home-folder grant removes repeated prompts while keeping App Sandbox.

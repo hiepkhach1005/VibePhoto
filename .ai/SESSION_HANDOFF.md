@@ -86,3 +86,10 @@ Read `AGENTS.md` and `.ai/TASKS.md`, run the three verification commands above w
 - Renamed product, Swift target, Xcode project/scheme, entitlements, sources/tests and bundle id (`com.local.ImageViewer` → `com.vibephoto.VibePhoto`); the outer folder is now `VibePhoto`.
 - Replaced AppIcon with the Vibe family Apple-native icon (source: `VibeNote/assets/design/vibe-icons/`).
 - `xcodebuild -project VibePhoto.xcodeproj -scheme VibePhoto -configuration Release -derivedDataPath build`: BUILD SUCCEEDED. Tests not run.
+
+## 2026-10-21 — UX refactor (UX-001)
+
+- See HISTORY 2026-10-21 and ADR-008. Changed: `VibePhotoApp.swift`, `AppCommands.swift`, `RootView.swift`, `BrowserView.swift`, `LibraryViewModel.swift`, `ViewerView.swift`, `ViewerViewModel.swift`, `ViewerWindow.swift`, `ZoomableImageView.swift`, `MetadataInspector.swift`, `SettingsView.swift`, `SecurityScopedBookmarks.swift`, `ImageLoadingService.swift`, `ViewerExperienceTests.swift`.
+- `swift build`: PASS. `swift test`: PASS, 13 tests. `xcodebuild -project VibePhoto.xcodeproj -scheme VibePhoto -configuration Debug build`: PASS.
+- Runtime verified: two sequential `open -a` image launches → one window; closing it quits; layer-rendered image is upright. Not visually verified: inspector close/Esc, browser selection and in-window viewer under Stage Manager.
+- Exact next step: run the Debug app with Stage Manager on, open Desktop in the browser, ⌘-click two thumbnails, press Return, and confirm the viewer steps only through them and Esc returns to the grid.

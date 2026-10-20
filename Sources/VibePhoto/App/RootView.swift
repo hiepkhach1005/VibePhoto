@@ -4,8 +4,8 @@ import UniformTypeIdentifiers
 
 struct RootView: View {
     @EnvironmentObject private var library: LibraryViewModel
-    @Environment(\.openWindow) private var openWindow
     @Binding var route: AppWindowRoute
+    @Binding var viewerRequest: ViewerRequest?
 
     var body: some View {
         Group {
@@ -19,7 +19,7 @@ struct RootView: View {
                     openRecent: library.openRememberedFolder
                 )
             } else {
-                BrowserView(openImage: { openWindow(value: AppWindowRoute.viewer($0)) })
+                BrowserView(viewerRequest: $viewerRequest)
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .chooseImage)) { _ in chooseImage() }
@@ -29,8 +29,7 @@ struct RootView: View {
             if url.hasDirectoryPath {
                 library.openFolder(url)
             } else if ImageFileService.isSupported(url) {
-                if library.rootFolder == nil { route = .viewer(url) }
-                else { openWindow(value: AppWindowRoute.viewer(url)) }
+                show(url)
             }
             return true
         }
@@ -42,8 +41,13 @@ struct RootView: View {
         panel.allowsMultipleSelection = false
         panel.allowedContentTypes = ImageFileService.supportedTypes
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        if library.rootFolder == nil { route = .viewer(url) }
-        else { openWindow(value: AppWindowRoute.viewer(url)) }
+        show(url)
+    }
+
+    /// Opens the image in this window: inside the browser when one is showing.
+    private func show(_ url: URL) {
+        if library.rootFolder == nil && !library.showingFavorites { route = .viewer(url) }
+        else { viewerRequest = ViewerRequest(url: url, collection: nil) }
     }
 
     private func chooseFolder() {

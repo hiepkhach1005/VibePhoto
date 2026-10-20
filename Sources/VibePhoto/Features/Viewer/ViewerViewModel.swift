@@ -12,28 +12,42 @@ final class ViewerViewModel: ObservableObject {
     @Published var showInspector = false
     @Published var showResize = false
     @Published var isWorking = false
+    @Published private(set) var isLoadingImage = false
+    @Published var favoriteNotice: FavoriteNotice?
     @Published var errorMessage: String?
     @Published var needsFolderAccess = false
     @Published var isSlideshow = false
 
     let favorites = FavoritesStore.shared
     private var initialURL: URL
+    /// An explicit set chosen in the browser; nil means "the images next to `initialURL`".
+    private var collection: [URL]?
+    private var loadTask: Task<Void, Never>?
+    private var prefetchTasks: [URL: Task<Void, Never>] = [:]
+    private var decodedImages: [URL: LoadedImage] = [:]
     private var fileAccess: SecurityScopedAccess?
     private var folderAccess: SecurityScopedAccess?
     private var lastBackup: ImageEditBackup?
     private var lastKnownModificationDate: Date?
 
-    init(initialURL: URL) {
+    init(initialURL: URL, collection: [URL]? = nil) {
         self.initialURL = initialURL
+        self.collection = collection
+    }
+
+    struct FavoriteNotice: Equatable {
+        let id = UUID()
+        let added: Bool
     }
 
     var currentURL: URL? { items.indices.contains(index) ? items[index].url : nil }
     var positionText: String { items.isEmpty ? "0 / 0" : "\(index + 1) / \(items.count)" }
-    var canGoPrevious: Bool { index > 0 }
-    var canGoNext: Bool { index + 1 < items.count }
+    // Navigation wraps around, so both directions work whenever there is another image.
+    var canGoPrevious: Bool { items.count > 1 }
+    var canGoNext: Bool { items.count > 1 }
     var folderAccessMessage: String {
         let folder = initialURL.deletingLastPathComponent().lastPathComponent
-        return "Allow access to \(folder) to browse all \(items.count) images."
+        return "Allow access to “\(folder)” to browse the other images in it."
     }
     var isFavorite: Bool { currentURL.map(favorites.contains) ?? false }
     var canUndoEdit: Bool {
@@ -42,13 +56,16 @@ final class ViewerViewModel: ObservableObject {
     }
 
     func load() {
+        if let collection {
+            items = collection.compactMap(ImageFileService.imageItem)
+            index = items.firstIndex { $0.url.standardizedFileURL == initialURL.standardizedFileURL } ?? 0
+            needsFolderAccess = false
+            loadCurrent()
+            return
+        }
         if fileAccess == nil { fileAccess = SecurityScopedAccess(url: initialURL) }
         if folderAccess == nil {
-            let parentPath = initialURL.deletingLastPathComponent().standardizedFileURL.path
-            if let bookmark = FolderAccessStore.shared.folders.first(where: { $0.originalPath == parentPath }),
-               let (_, access) = FolderAccessStore.shared.resolve(bookmark) {
-                folderAccess = access
-            }
+            folderAccess = FolderAccessStore.shared.accessCovering(initialURL.deletingLastPathComponent())
         }
         do {
             let siblings = try ImageFileService.siblingImages(of: initialURL)
@@ -81,13 +98,31 @@ final class ViewerViewModel: ObservableObject {
         }
     }
 
-    func previous() { navigate(to: index - 1) }
-    func next() { navigate(to: index + 1) }
+    func previous() { navigate(to: wrappedIndex(index - 1)) }
+    func next() { navigate(to: wrappedIndex(index + 1)) }
 
     func advanceSlideshow() {
         guard !items.isEmpty else { return }
-        if canGoNext { index += 1 } else { index = 0 }
+        index = wrappedIndex(index + 1)
         loadCurrent()
+    }
+
+    /// Shows another image in this same window instead of opening a new one.
+    func open(_ url: URL) {
+        let target = url.standardizedFileURL
+        if let existing = items.firstIndex(where: { $0.url.standardizedFileURL == target }) {
+            index = existing
+            loadCurrent()
+            return
+        }
+        initialURL = url
+        collection = nil
+        fileAccess = nil
+        let folder = target.deletingLastPathComponent().path
+        if let access = folderAccess, !FolderAccessStore.path(access.url.standardizedFileURL.path, covers: folder) {
+            folderAccess = nil
+        }
+        load()
     }
 
     func copyCurrentFile() {
@@ -96,29 +131,38 @@ final class ViewerViewModel: ObservableObject {
         NSPasteboard.general.writeObjects([url as NSURL])
     }
 
+    /// Asks for the image's folder, or any parent of it. A parent grant (such as the
+    /// Home folder) is remembered permanently and covers every folder inside it.
     @discardableResult
-    func requestFolderAccess() -> Bool {
+    func requestFolderAccess(suggesting directory: URL? = nil) -> Bool {
+        let expectedFolder = initialURL.deletingLastPathComponent().standardizedFileURL
         let panel = NSOpenPanel()
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
-        panel.directoryURL = initialURL.deletingLastPathComponent()
+        panel.directoryURL = directory ?? expectedFolder
         panel.prompt = "Grant Access"
-        panel.message = "Choose the folder containing this image so VibePhoto can navigate neighboring images."
-        guard panel.runModal() == .OK, let folder = panel.url else { return false }
-        let expectedFolder = initialURL.deletingLastPathComponent().standardizedFileURL
-        guard folder.standardizedFileURL == expectedFolder else {
-            errorMessage = "Please choose the folder containing this image: \(expectedFolder.lastPathComponent)."
+        panel.message = "Choose “\(expectedFolder.lastPathComponent)” or any folder that contains it. "
+            + "Choosing your Home folder lets VibePhoto open every folder inside it without asking again."
+        guard panel.runModal() == .OK, let folder = panel.url?.standardizedFileURL else { return false }
+        guard FolderAccessStore.path(folder.path, covers: expectedFolder.path) else {
+            errorMessage = "“\(folder.lastPathComponent)” does not contain this image. "
+                + "Choose “\(expectedFolder.lastPathComponent)” or one of its parent folders."
             return false
         }
-        folderAccess = FolderAccessStore.shared.remember(folder)
+        folderAccess = FolderAccessStore.shared.remember(folder, pinned: folder != expectedFolder)
         needsFolderAccess = false
         load()
         return true
     }
 
+    func requestHomeFolderAccess() {
+        requestFolderAccess(suggesting: FolderAccessStore.userHomeDirectory)
+    }
+
     func toggleFavorite() {
         guard let url = currentURL else { return }
         favorites.toggle(url)
+        favoriteNotice = FavoriteNotice(added: favorites.contains(url))
         objectWillChange.send()
     }
 
@@ -142,7 +186,7 @@ final class ViewerViewModel: ObservableObject {
                 ImageEditingService.discard(lastBackup)
                 lastBackup = newBackup
                 ThumbnailCache.shared.removeAll()
-                reloadCurrentImage()
+                reloadCurrentImage(discardingCache: true)
             } catch {
                 errorMessage = "Rotation failed: \(error.localizedDescription)"
             }
@@ -182,7 +226,16 @@ final class ViewerViewModel: ObservableObject {
                 }
                 ThumbnailCache.shared.removeAll()
                 showResize = false
-                if replacingOriginal { reloadCurrentImage() } else { initialURL = destination; load() }
+                if replacingOriginal {
+                    reloadCurrentImage(discardingCache: true)
+                } else if collection != nil {
+                    collection?.insert(destination, at: index + 1)
+                    initialURL = destination
+                    load()
+                } else {
+                    initialURL = destination
+                    load()
+                }
             } catch {
                 errorMessage = "Resize failed: \(error.localizedDescription)"
             }
@@ -196,7 +249,7 @@ final class ViewerViewModel: ObservableObject {
             try ImageEditingService.restore(backup)
             lastBackup = nil
             ThumbnailCache.shared.removeAll()
-            reloadCurrentImage()
+            reloadCurrentImage(discardingCache: true)
         } catch {
             errorMessage = "Undo failed: \(error.localizedDescription)"
         }
@@ -208,6 +261,8 @@ final class ViewerViewModel: ObservableObject {
             var resultingURL: NSURL?
             try FileManager.default.trashItem(at: url, resultingItemURL: &resultingURL)
             if favorites.contains(url) { favorites.toggle(url) }
+            decodedImages[url] = nil
+            collection?.removeAll { $0.standardizedFileURL == url.standardizedFileURL }
             items.remove(at: index)
             if index >= items.count { index = max(0, items.count - 1) }
             loadCurrent()
@@ -224,8 +279,13 @@ final class ViewerViewModel: ObservableObject {
         reloadCurrentImage()
     }
 
+    private func wrappedIndex(_ value: Int) -> Int {
+        guard !items.isEmpty else { return 0 }
+        return (value % items.count + items.count) % items.count
+    }
+
     private func navigate(to requestedIndex: Int) {
-        guard items.indices.contains(requestedIndex) else { return }
+        guard items.indices.contains(requestedIndex), requestedIndex != index else { return }
         let requestedURL = items[requestedIndex].url.standardizedFileURL
         if needsFolderAccess, !requestFolderAccess() { return }
         guard let resolvedIndex = items.firstIndex(where: {
@@ -235,11 +295,60 @@ final class ViewerViewModel: ObservableObject {
         loadCurrent()
     }
 
-    private func reloadCurrentImage() {
+    /// Decodes off the main actor. The previous image stays visible until the new one is
+    /// ready, and neighbours are decoded ahead so Previous/Next feel instant.
+    private func reloadCurrentImage(discardingCache: Bool = false) {
         guard let url = currentURL else { return }
-        image = ImageLoadingService.loadImage(at: url)
-        metadata = ImageMetadataService.read(from: url)
-        lastKnownModificationDate = try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
-        if image == nil { errorMessage = "The image is unsupported or damaged." }
+        loadTask?.cancel()
+        if discardingCache { decodedImages[url] = nil }
+        if let cached = decodedImages[url] {
+            show(cached)
+            prefetchNeighbours()
+            return
+        }
+        isLoadingImage = true
+        loadTask = Task { [weak self] in
+            let loaded = await Task.detached(priority: .userInitiated) {
+                ImageLoadingService.loadForDisplay(at: url)
+            }.value
+            guard let self, !Task.isCancelled, self.currentURL == url else { return }
+            self.isLoadingImage = false
+            if let loaded {
+                self.decodedImages[url] = loaded
+                self.show(loaded)
+                self.prefetchNeighbours()
+            } else {
+                self.image = nil
+                self.metadata = []
+                self.errorMessage = "The image is unsupported or damaged."
+            }
+        }
+    }
+
+    private func show(_ loaded: LoadedImage) {
+        isLoadingImage = false
+        image = loaded.image
+        metadata = loaded.metadata
+        lastKnownModificationDate = loaded.modificationDate
+    }
+
+    private func prefetchNeighbours() {
+        guard items.count > 1, !needsFolderAccess else { return }
+        let wanted = Set([index, wrappedIndex(index - 1), wrappedIndex(index + 1)].map { items[$0].url })
+        decodedImages = decodedImages.filter { wanted.contains($0.key) }
+        for (url, task) in prefetchTasks where !wanted.contains(url) {
+            task.cancel()
+            prefetchTasks[url] = nil
+        }
+        for url in wanted where decodedImages[url] == nil && prefetchTasks[url] == nil {
+            prefetchTasks[url] = Task { [weak self] in
+                let loaded = await Task.detached(priority: .utility) {
+                    ImageLoadingService.loadForDisplay(at: url)
+                }.value
+                guard let self, !Task.isCancelled else { return }
+                self.prefetchTasks[url] = nil
+                if let loaded { self.decodedImages[url] = loaded }
+            }
+        }
     }
 }

@@ -1,12 +1,12 @@
 # Current Status
 
-Updated: 2026-09-01
+Updated: 2026-10-21
 
 ## Verified build
 
 - Swift Package Debug build: passes.
 - Swift Package Release build: passes.
-- Swift Testing: 7 tests pass.
+- Swift Testing: 13 tests pass.
 - Xcode 26.6 macOS app target: builds and signs locally.
 - Original AppIcon asset catalog: all macOS 16–1024 px slots compile successfully to `AppIcon.icns` and `Assets.car`.
 - App Sandbox entitlements were inspected in the resulting app and include app sandbox, app-scoped bookmarks, and user-selected read/write access.
@@ -16,7 +16,9 @@ Updated: 2026-09-01
 ## Working product behavior
 
 - Welcome, Open Image, Open Folder, drag/drop URLs, recent folders, and File menu commands.
-- Folder URLs route to Browser windows; image URLs replace the empty Welcome window with one Viewer, while Browser thumbnails can still open independent Viewer windows.
+- Images open inside the current window: Browser thumbnails and Finder opens show an in-window viewer (Esc returns to the grid); a frontmost Viewer window replaces its image. Closing the last window quits the app.
+- Grid multi-selection (click/⌘/⇧) opens a viewer limited to the selection; Previous/Next wrap around.
+- Folder grants cover nested folders; a pinned Home-folder grant (Settings ▸ Folder Access) avoids repeated prompts.
 - Common formats are recognized by filename/UTType even when sandbox metadata lookup fails; direct files retain security-scoped access and fall back to single-image viewing when their parent folder cannot be enumerated.
 - Persistent security-scoped folder bookmarks with stale-bookmark refresh and explicit grant-folder recovery.
 - Lazy subfolder tree, optional recursive scan, scan cancellation, debounced external-change refresh, and bounded memory thumbnail cache.

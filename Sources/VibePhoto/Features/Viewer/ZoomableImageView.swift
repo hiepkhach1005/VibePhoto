@@ -19,48 +19,70 @@ struct ZoomableImageView: NSViewRepresentable {
 
     func makeNSView(context: Context) -> ImageScrollView {
         let view = ImageScrollView()
-        view.onZoom = { context.coordinator.reportZoom($0) }
-        view.onModeChange = { context.coordinator.reportMode($0) }
+        let coordinator = context.coordinator
+        coordinator.view = view
+        view.onZoom = { [weak coordinator] _ in coordinator?.scheduleSync() }
+        view.onModeChange = { [weak coordinator] _ in coordinator?.scheduleSync() }
         view.imageView.onPrevious = onPrevious
         view.imageView.onNext = onNext
         view.setImage(image)
+        _ = coordinator.isNewRequest(mode: mode, zoom: zoom)
         view.apply(mode: mode, customZoom: zoom)
         return view
     }
 
     func updateNSView(_ view: ImageScrollView, context: Context) {
+        let coordinator = context.coordinator
+        coordinator.zoom = $zoom
+        coordinator.mode = $mode
         view.imageView.onPrevious = onPrevious
         view.imageView.onNext = onNext
         if view.imageView.image !== image { view.setImage(image) }
-        view.apply(mode: mode, customZoom: zoom)
+        // Only forward values SwiftUI changed. Values the view reported itself may
+        // still be in flight; re-applying them would snap the zoom back mid-gesture.
+        if coordinator.isNewRequest(mode: mode, zoom: zoom) {
+            view.apply(mode: mode, customZoom: zoom)
+        }
     }
 
     @MainActor final class Coordinator {
         var zoom: Binding<CGFloat>
         var mode: Binding<ImageZoomMode>
+        weak var view: ImageScrollView?
+        private var syncedZoom: CGFloat?
+        private var syncedMode: ImageZoomMode?
+        private var syncScheduled = false
+
         init(zoom: Binding<CGFloat>, mode: Binding<ImageZoomMode>) {
             self.zoom = zoom
             self.mode = mode
         }
 
-        func reportZoom(_ value: CGFloat) {
-            guard abs(zoom.wrappedValue - value) > 0.0001 else { return }
+        func isNewRequest(mode: ImageZoomMode, zoom: CGFloat) -> Bool {
+            defer {
+                syncedMode = mode
+                syncedZoom = zoom
+            }
+            guard let syncedZoom, let syncedMode else { return true }
+            return mode != syncedMode || abs(zoom - syncedZoom) > 0.0001
+        }
+
+        /// Coalesces the many zoom changes of one gesture into a single SwiftUI update per run-loop pass.
+        func scheduleSync() {
+            guard !syncScheduled else { return }
+            syncScheduled = true
             RunLoop.main.perform { [weak self] in
-                MainActor.assumeIsolated {
-                    guard let self, abs(self.zoom.wrappedValue - value) > 0.0001 else { return }
-                    self.zoom.wrappedValue = value
-                }
+                MainActor.assumeIsolated { self?.flush() }
             }
         }
 
-        func reportMode(_ value: ImageZoomMode) {
-            guard mode.wrappedValue != value else { return }
-            RunLoop.main.perform { [weak self] in
-                MainActor.assumeIsolated {
-                    guard let self, self.mode.wrappedValue != value else { return }
-                    self.mode.wrappedValue = value
-                }
-            }
+        private func flush() {
+            syncScheduled = false
+            guard let view else { return }
+            syncedZoom = view.zoomFactor
+            syncedMode = view.mode
+            if mode.wrappedValue != view.mode { mode.wrappedValue = view.mode }
+            if abs(zoom.wrappedValue - view.zoomFactor) > 0.0001 { zoom.wrappedValue = view.zoomFactor }
         }
     }
 }
@@ -70,7 +92,7 @@ final class ImageScrollView: NSScrollView {
     var onZoom: ((CGFloat) -> Void)?
     var onModeChange: ((ImageZoomMode) -> Void)?
     private(set) var zoomFactor: CGFloat = 1
-    private var mode: ImageZoomMode = .fit
+    private(set) var mode: ImageZoomMode = .fit
     private var panStartLocation: CGPoint?
     private var panStartOrigin: CGPoint?
 
@@ -108,11 +130,8 @@ final class ImageScrollView: NSScrollView {
         case .actual:
             setZoom(1, center: modeChanged)
         case .custom:
-            if abs(customZoom - zoomFactor) > 0.0001 {
-                setZoom(customZoom, center: true)
-            } else {
-                onZoom?(zoomFactor)
-            }
+            // Toolbar and keyboard zoom keep the middle of the viewport in place.
+            setZoom(customZoom)
         }
     }
 
@@ -169,9 +188,10 @@ final class ImageScrollView: NSScrollView {
             x: pointerInClip.x - contentView.bounds.minX,
             y: pointerInClip.y - contentView.bounds.minY
         )
-        let factor = exp(event.scrollingDeltaY * 0.012)
-        mode = .custom
-        onModeChange?(.custom)
+        // Trackpads report many small pixel deltas; mouse wheels report a few whole lines.
+        let sensitivity: CGFloat = event.hasPreciseScrollingDeltas ? 0.01 : 0.08
+        let factor = exp(event.scrollingDeltaY * sensitivity)
+        setMode(.custom)
         setZoom(
             zoomFactor * factor,
             anchorDocumentPoint: pointerInDocument,
@@ -180,9 +200,23 @@ final class ImageScrollView: NSScrollView {
     }
 
     override func magnify(with event: NSEvent) {
-        mode = .custom
-        onModeChange?(.custom)
-        setZoom(zoomFactor * (1 + event.magnification))
+        let pointerInDocument = imageView.convert(event.locationInWindow, from: nil)
+        let pointerInClip = contentView.convert(event.locationInWindow, from: nil)
+        setMode(.custom)
+        setZoom(
+            zoomFactor * (1 + event.magnification),
+            anchorDocumentPoint: pointerInDocument,
+            viewportOffset: CGPoint(
+                x: pointerInClip.x - contentView.bounds.minX,
+                y: pointerInClip.y - contentView.bounds.minY
+            )
+        )
+    }
+
+    private func setMode(_ newMode: ImageZoomMode) {
+        guard mode != newMode else { return }
+        mode = newMode
+        onModeChange?(newMode)
     }
 
     private func updateDocumentSize() {
@@ -191,13 +225,12 @@ final class ImageScrollView: NSScrollView {
             width: image.size.width * zoomFactor,
             height: image.size.height * zoomFactor
         )
-        imageView.displayedImageSize = displayedSize
         let size = CGSize(
             width: max(contentSize.width, displayedSize.width),
             height: max(contentSize.height, displayedSize.height)
         )
         imageView.frame = CGRect(origin: .zero, size: size)
-        imageView.needsDisplay = true
+        imageView.displayedImageSize = displayedSize
         imageView.updateCursor()
     }
 
@@ -262,14 +295,31 @@ final class ImageScrollView: NSScrollView {
     }
 }
 
-final class ImageCanvasView: NSImageView {
+final class ImageCanvasView: NSView {
     var onDoubleClick: (() -> Void)?
     var onPanBegan: ((NSEvent) -> Void)?
     var onPanChanged: ((NSEvent) -> Void)?
     var onPanEnded: (() -> Void)?
     var onPrevious: (() -> Void)?
     var onNext: (() -> Void)?
-    var displayedImageSize: CGSize = .zero
+    var image: NSImage? {
+        didSet { imageLayerView.image = image }
+    }
+    var displayedImageSize: CGSize = .zero {
+        didSet { imageLayerView.frame = imageDrawingRect }
+    }
+
+    // The bitmap lives in a layer so Core Animation scales it on the GPU while
+    // zooming, instead of redrawing the full-resolution image for every event.
+    private let imageLayerView = ImageLayerView()
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        addSubview(imageLayerView)
+    }
+
+    required init?(coder: NSCoder) { nil }
 
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
@@ -283,16 +333,9 @@ final class ImageCanvasView: NSImageView {
         )
     }
 
-    override func draw(_ dirtyRect: NSRect) {
-        guard let image, displayedImageSize.width > 0, displayedImageSize.height > 0 else { return }
-        image.draw(
-            in: imageDrawingRect,
-            from: CGRect(origin: .zero, size: image.size),
-            operation: .sourceOver,
-            fraction: 1,
-            respectFlipped: true,
-            hints: [.interpolation: NSImageInterpolation.high]
-        )
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        imageLayerView.frame = imageDrawingRect
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -335,4 +378,31 @@ final class ImageCanvasView: NSImageView {
         discardCursorRects()
         addCursorRect(bounds, cursor: enclosingScrollView?.documentVisibleRect.size == bounds.size ? .arrow : .openHand)
     }
+}
+
+private final class ImageLayerView: NSView {
+    var image: NSImage? {
+        didSet { needsDisplay = true }
+    }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        layerContentsRedrawPolicy = .onSetNeedsDisplay
+    }
+
+    required init?(coder: NSCoder) { nil }
+
+    override var wantsUpdateLayer: Bool { true }
+
+    override func updateLayer() {
+        guard let layer else { return }
+        layer.contents = image?.cgImage(forProposedRect: nil, context: nil, hints: nil)
+        layer.contentsGravity = .resize
+        layer.minificationFilter = .trilinear
+        layer.magnificationFilter = .linear
+    }
+
+    // Mouse handling belongs to the canvas underneath.
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
 }

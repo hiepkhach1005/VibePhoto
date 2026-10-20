@@ -6,6 +6,8 @@ struct StoredFolderBookmark: Codable, Identifiable, Hashable {
     var originalPath: String
     var bookmarkData: Data
     var lastOpenedAt: Date
+    /// Broad grants (for example the Home folder) are kept even when the recent list is trimmed.
+    var isPinned: Bool?
 }
 
 final class SecurityScopedAccess {
@@ -31,8 +33,36 @@ final class FolderAccessStore: ObservableObject {
 
     private init() { load() }
 
+    /// The real user home folder; `homeDirectoryForCurrentUser` points inside the sandbox container.
+    static var userHomeDirectory: URL {
+        if let entry = getpwuid(getuid()), let directory = entry.pointee.pw_dir {
+            return URL(fileURLWithPath: String(cString: directory), isDirectory: true)
+        }
+        return FileManager.default.homeDirectoryForCurrentUser
+    }
+
+    /// True when `grantedPath` is `path` itself or one of its ancestors.
+    nonisolated static func path(_ grantedPath: String, covers path: String) -> Bool {
+        if grantedPath == "/" || grantedPath == path { return true }
+        return path.hasPrefix(grantedPath.hasSuffix("/") ? grantedPath : grantedPath + "/")
+    }
+
+    var pinnedFolders: [StoredFolderBookmark] { folders.filter { $0.isPinned == true } }
+
+    /// Resolves a remembered grant for `folder` or any of its ancestors, preferring the closest one.
+    func accessCovering(_ folder: URL) -> SecurityScopedAccess? {
+        let path = folder.standardizedFileURL.path
+        let candidates = folders
+            .filter { Self.path($0.originalPath, covers: path) }
+            .sorted { $0.originalPath.count > $1.originalPath.count }
+        for bookmark in candidates {
+            if let (_, access) = resolve(bookmark) { return access }
+        }
+        return nil
+    }
+
     @discardableResult
-    func remember(_ url: URL) -> SecurityScopedAccess? {
+    func remember(_ url: URL, pinned: Bool = false) -> SecurityScopedAccess? {
         let normalized = url.standardizedFileURL
         let access = SecurityScopedAccess(url: normalized)
         do {
@@ -44,14 +74,16 @@ final class FolderAccessStore: ObservableObject {
             if let index = folders.firstIndex(where: { $0.originalPath == normalized.path }) {
                 folders[index].bookmarkData = data
                 folders[index].lastOpenedAt = Date()
+                if pinned { folders[index].isPinned = true }
             } else {
                 folders.append(.init(
                     id: UUID(), displayName: normalized.lastPathComponent,
-                    originalPath: normalized.path, bookmarkData: data, lastOpenedAt: Date()
+                    originalPath: normalized.path, bookmarkData: data, lastOpenedAt: Date(),
+                    isPinned: pinned ? true : nil
                 ))
             }
             folders.sort { $0.lastOpenedAt > $1.lastOpenedAt }
-            if folders.count > 12 { folders.removeLast(folders.count - 12) }
+            trimRecentFolders()
             persist()
             return access
         } catch {
@@ -74,9 +106,25 @@ final class FolderAccessStore: ObservableObject {
         }
     }
 
+    func unpin(_ bookmark: StoredFolderBookmark) {
+        guard let index = folders.firstIndex(where: { $0.id == bookmark.id }) else { return }
+        folders[index].isPinned = nil
+        trimRecentFolders()
+        persist()
+    }
+
     func forget(_ bookmark: StoredFolderBookmark) {
         folders.removeAll { $0.id == bookmark.id }
         persist()
+    }
+
+    private func trimRecentFolders() {
+        var unpinnedCount = 0
+        folders.removeAll { folder in
+            guard folder.isPinned != true else { return false }
+            unpinnedCount += 1
+            return unpinnedCount > 12
+        }
     }
 
     private func load() {
